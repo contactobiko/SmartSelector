@@ -5,24 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Smart Selector</title>
     <style>
-        * { box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Arial, sans-serif; background: #121212; color: #e0e0e0; margin: 0; padding: 20px; min-height: 100vh; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #121212; color: #e0e0e0; padding: 20px; }
         .container { max-width: 600px; margin: 0 auto; }
-        h1 { color: #bb86fc; text-align: center; margin-bottom: 5px; }
-        .subtitle { text-align: center; color: #888; margin-bottom: 30px; }
-        .card { background: #1e1e1e; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
-        .card-title { color: #bb86fc; font-size: 1em; margin-bottom: 15px; }
-        label { display: block; margin: 10px 0 5px; font-weight: 500; color: #b0b0b0; font-size: 0.9em; }
-        input[type="text"], input[type="number"], select { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #333; background: #2a2a2a; color: #fff; font-size: 14px; }
+        h1 { color: #bb86fc; text-align: center; margin: 20px 0 10px; }
+        .subtitle { text-align: center; color: #888; margin-bottom: 25px; }
+        .card { background: #1e1e1e; border-radius: 12px; padding: 20px; margin-bottom: 15px; }
+        .card-title { color: #bb86fc; margin-bottom: 12px; font-size: 0.95em; }
+        label { display: block; margin: 8px 0 4px; font-size: 0.85em; color: #aaa; }
+        input, select { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #333; background: #2a2a2a; color: #fff; font-size: 14px; }
         input:focus, select:focus { outline: none; border-color: #bb86fc; }
         .url-row { display: flex; gap: 8px; margin-bottom: 8px; }
         .url-row input { flex: 1; }
         .btn-add { background: #333; color: #bb86fc; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; }
         .btn-add:hover { background: #444; }
-        .btn-remove { background: #333; color: #e0e0e0; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; }
-        .btn-remove:hover { background: #d32f2f; }
-        .checkbox-group { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; }
-        .checkbox-item { display: flex; align-items: center; gap: 6px; background: #2a2a2a; padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 0.9em; }
+        .btn-remove { background: #333; color: #fff; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; }
+        .btn-remove:hover { background: #c00; }
+        .checkbox-group { display: flex; flex-wrap: wrap; gap: 8px; }
+        .checkbox-item { display: flex; align-items: center; gap: 6px; background: #2a2a2a; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 0.9em; }
         .checkbox-item input { accent-color: #bb86fc; }
         .lang-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
         .lang-row select { flex: 1; }
@@ -30,12 +30,11 @@
         .buttons { display: flex; gap: 10px; margin-top: 20px; }
         .btn { flex: 1; padding: 14px; border: none; border-radius: 8px; font-size: 14px; font-weight: bold; cursor: pointer; }
         .btn-install { background: linear-gradient(135deg, #bb86fc, #6200ea); color: #fff; }
-        .btn-install:hover { opacity: 0.9; }
         .btn-copy { background: #333; color: #fff; }
         .btn-copy:hover { background: #444; }
         .btn-copy.copied { background: #2e7d32; }
-        .result { margin-top: 15px; padding: 12px; background: #1a1a1a; border-radius: 6px; display: none; word-break: break-all; font-size: 12px; }
-        .result a { color: #bb86fc; }
+        .result { margin-top: 15px; padding: 12px; background: #1a1a1a; border-radius: 6px; display: none; font-size: 12px; }
+        .result a { color: #bb86fc; word-break: break-all; }
     </style>
 </head>
 <body>
@@ -100,17 +99,17 @@
         <div class="card">
             <div class="card-title">Calidades</div>
             <div class="checkbox-group">
-                <label class="checkbox-item"><input type="checkbox" class="quality-cb" value="2160p" checked> 4K</label>
-                <label class="checkbox-item"><input type="checkbox" class="quality-cb" value="1080p" checked> 1080p</label>
-                <label class="checkbox-item"><input type="checkbox" class="quality-cb" value="720p" checked> 720p</label>
-                <label class="checkbox-item"><input type="checkbox" class="quality-cb" value="cam" checked> CAM</label>
-                <label class="checkbox-item"><input type="checkbox" class="quality-cb" value="480p" checked> 480p</label>
+                <label class="checkbox-item"><input type="checkbox" value="2160p" checked> 4K</label>
+                <label class="checkbox-item"><input type="checkbox" value="1080p" checked> 1080p</label>
+                <label class="checkbox-item"><input type="checkbox" value="720p" checked> 720p</label>
+                <label class="checkbox-item"><input type="checkbox" value="cam" checked> CAM</label>
+                <label class="checkbox-item"><input type="checkbox" value="480p" checked> 480p</label>
             </div>
         </div>
 
         <div class="buttons">
             <button class="btn btn-install" onclick="install()">Instalar</button>
-            <button class="btn btn-copy" id="copyBtn" onclick="copyUrl()">Copiar URL</button>
+            <button class="btn btn-copy" onclick="copyUrl()">Copiar URL</button>
         </div>
 
         <div class="result" id="result">
@@ -123,7 +122,7 @@
         function addUrl() {
             const div = document.createElement('div');
             div.className = 'url-row';
-            div.innerHTML = `<input type="text" class="addon-url" placeholder=""><button class="btn-remove" onclick="removeUrl(this)">×</button>`;
+            div.innerHTML = '<input type="text" class="addon-url" placeholder=""><button class="btn-remove" onclick="removeUrl(this)">×</button>';
             document.getElementById('urlList').appendChild(div);
         }
         function removeUrl(btn) {
@@ -151,49 +150,42 @@
         }
 
         function buildConfig() {
-            const addonUrls = Array.from(document.querySelectorAll('.addon-url'))
-                .map(i => i.value.trim()).filter(v => v);
-
-            const audioPrefs = Array.from(document.querySelectorAll('.audio-lang'))
-                .map(s => s.value);
-
-            const subtitleMap = {};
+            const urls = [...document.querySelectorAll('.addon-url')].map(i => i.value.trim()).filter(Boolean);
+            const audio = [...document.querySelectorAll('.audio-lang')].map(s => s.value);
+            const subMap = {};
             document.querySelectorAll('#subtitleList .lang-row').forEach(row => {
-                subtitleMap[row.querySelector('.audio-source').value] = row.querySelector('.subtitle-target').value;
+                subMap[row.querySelector('.audio-source').value] = row.querySelector('.subtitle-target').value;
             });
-
-            const qualities = Array.from(document.querySelectorAll('.quality-cb:checked'))
-                .map(cb => cb.value);
-
-            return { addonUrls, audioPrefs, subtitleMap, qualities };
+            const qualities = [...document.querySelectorAll('.checkbox-item input:checked')].map(i => i.value);
+            return { addonUrls: urls, audioPrefs: audio, subtitleMap: subMap, qualities };
         }
 
         function getManifestUrl(config) {
             const encoded = btoa(JSON.stringify(config));
-            const host = window.location.host;
-            const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+            const { protocol, host } = window.location;
             return `${protocol}//${host}/${encoded}/manifest.json`;
+        }
+
+        function showResult(url) {
+            document.getElementById('manifestUrl').href = url;
+            document.getElementById('manifestUrl').textContent = url;
+            document.getElementById('result').style.display = 'block';
         }
 
         function install() {
             const config = buildConfig();
             const url = getManifestUrl(config);
-            document.getElementById('manifestUrl').href = url;
-            document.getElementById('manifestUrl').textContent = url;
-            document.getElementById('result').style.display = 'block';
+            showResult(url);
             window.location.href = `stremio://${window.location.host}/${btoa(JSON.stringify(config))}/manifest.json`;
         }
 
         function copyUrl() {
-            const config = buildConfig();
-            const url = getManifestUrl(config);
+            const url = getManifestUrl(buildConfig());
             navigator.clipboard.writeText(url).then(() => {
-                const btn = document.getElementById('copyBtn');
+                const btn = document.querySelector('.btn-copy');
                 btn.textContent = 'Copiado';
                 btn.classList.add('copied');
-                document.getElementById('manifestUrl').href = url;
-                document.getElementById('manifestUrl').textContent = url;
-                document.getElementById('result').style.display = 'block';
+                showResult(url);
                 setTimeout(() => {
                     btn.textContent = 'Copiar URL';
                     btn.classList.remove('copied');
