@@ -1,12 +1,43 @@
 const axios = require("axios");
 
-const QUALITY_RANK = { 
-  "2160p": 5, "4k": 5, "uhd": 5, 
-  "1080p": 4, "fhd": 4, 
-  "720p": 3, "hd": 3, 
-  "480p": 2, "480": 2, 
-  "sd": 1, "cam": 1, "ts": 1, "unknown": 0 
+const HTTP_CONFIG = {
+  timeout: 15000,
+  headers: {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9"
+  }
 };
+
+const QUALITY_SCORES = {
+  "2160p": 5, "4k": 5, "uhd": 5,
+  "1080p": 4, "fhd": 4,
+  "720p": 3, "hd": 3,
+  "480p": 2, "480": 2,
+  "cam": 1, "ts": 1, "sd": 1,
+  "unknown": 0
+};
+
+const LANGUAGE_PATTERNS = {
+  spa: /\b(spa|esp|spanish|castellano|espa[ñn]ol|latino|latam)\b/,
+  eng: /\b(eng|english|ingl[eé]s)\b/,
+  fra: /\b(fra|fre|french|franc[eé]s)\b/,
+  deu: /\b(deu|ger|german|alem[aá]n|deutsch)\b/,
+  ita: /\b(ita|italian|italiano)\b/,
+  por: /\b(por|port|portuguese|portugu[eê]s)\b/,
+  jpn: /\b(jpn|japanese|japon[eé]s)\b/,
+  kor: /\b(kor|korean|coreano)\b/,
+  zho: /\b(zho|chinese|chino|mandarin)\b/,
+  rus: /\b(rus|russian|ruso)\b/
+};
+
+const QUALITY_PATTERNS = [
+  { regex: /2160p|4k|uhd/, quality: "2160p" },
+  { regex: /1080p|fhd/, quality: "1080p" },
+  { regex: /720p/, quality: "720p" },
+  { regex: /480p|dvdrip/, quality: "480p" },
+  { regex: /cam|ts|r5|scr/, quality: "cam" }
+];
 
 const DEFAULT_CONFIG = {
   audioPrefs: ["spa", "eng"],
@@ -15,143 +46,89 @@ const DEFAULT_CONFIG = {
   addonUrls: []
 };
 
+function cleanUrl(url) {
+  return url.trim()
+    .replace(/\/+$/, "")
+    .replace(/\/manifest\.json\/?$/, "")
+    .replace(/\/sort=[^\/]+$/, "");
+}
+
 function detectQuality(text) {
   const t = (text || "").toLowerCase();
-  if (/2160p|4k|uhd/.test(t)) return "2160p";
-  if (/1080p|fhd/.test(t)) return "1080p";
-  if (/720p/.test(t)) return "720p";
-  if (/480p|dvdrip/.test(t)) return "480p";
-  if (/cam|ts|r5|.scr/.test(t)) return "cam";
+  for (const { regex, quality } of QUALITY_PATTERNS) {
+    if (regex.test(t)) return quality;
+  }
   return "unknown";
 }
 
-function detectAudioLangs(text) {
+function detectLanguages(text) {
   const t = (text || "").toLowerCase();
   const found = [];
-  if (/\b(spa|esp|spanish|castellano|espa[ñn]ol|latino|latam)\b/.test(t)) found.push("spa");
-  if (/\b(eng|english|ingl[eé]s)\b/.test(t)) found.push("eng");
-  if (/\b(fra|fre|french|franc[eé]s)\b/.test(t)) found.push("fra");
-  if (/\b(deu|ger|german|alem[aá]n|deutsch)\b/.test(t)) found.push("deu");
-  if (/\b(ita|italian|italiano)\b/.test(t)) found.push("ita");
-  if (/\b(por|port|portuguese|portugu[eê]s)\b/.test(t)) found.push("por");
-  if (/\b(jpn|japanese|japon[eé]s)\b/.test(t)) found.push("jpn");
-  if (/\b(kor|korean|coreano)\b/.test(t)) found.push("kor");
-  if (/\b(zho|chinese|chino|mandarin)\b/.test(t)) found.push("zho");
-  if (/\b(rus|russian|ruso)\b/.test(t)) found.push("rus");
+  for (const [lang, pattern] of Object.entries(LANGUAGE_PATTERNS)) {
+    if (pattern.test(t)) found.push(lang);
+  }
   return found;
 }
 
-function detectSubtitleLangs(text) {
+function detectSubtitles(text) {
   const t = (text || "").toLowerCase();
+  if (!/sub(?:titles?|s?)|subtitulad[ao]|subbed/.test(t)) return [];
   const found = [];
-  if (/sub(?:titles?|s?)|subtitulad[ao]|subbed/.test(t)) {
-    if (/\b(spa|esp|spanish|castellano|espa[ñn]ol)\b/.test(t)) found.push("spa");
-    if (/\b(eng|english)\b/.test(t)) found.push("eng");
-    if (/\b(fra|french)\b/.test(t)) found.push("fra");
-    if (/\b(deu|german|deutsch)\b/.test(t)) found.push("deu");
-    if (/\b(ita|italian)\b/.test(t)) found.push("ita");
-    if (/\b(por|portuguese)\b/.test(t)) found.push("por");
-  }
+  if (/\b(spa|esp|spanish|castellano|espa[ñn]ol)\b/.test(t)) found.push("spa");
+  if (/\b(eng|english)\b/.test(t)) found.push("eng");
+  if (/\b(fra|french)\b/.test(t)) found.push("fra");
+  if (/\b(deu|german)\b/.test(t)) found.push("deu");
   return found;
 }
 
 function scoreStream(stream, prefs) {
-  const text = [(stream.name || ""), (stream.title || "")].join(" ");
+  const text = `${stream.name || ""} ${stream.title || ""}`;
+  const audioLangs = detectLanguages(text);
+  const quality = detectQuality(text);
+  const subtitles = detectSubtitles(text);
   let score = 0;
-  const breakdown = {};
 
-  const audio = detectAudioLangs(text);
+  const audioIdx = prefs.audioPrefs.findIndex(l => audioLangs.includes(l));
+  if (audioIdx === 0) score += 500;
+  else if (audioIdx > 0) score += Math.max(100, 400 - audioIdx * 80);
+  else if (audioLangs.length === 0) score += 50;
+  else score += 0;
 
-  if (!prefs.audioPrefs || prefs.audioPrefs.length === 0) {
-    score += 200;
-    breakdown.audio = "+200";
-  } else {
-    const bestIdx = prefs.audioPrefs.findIndex(l => audio.includes(l));
-    if (bestIdx === 0) {
-      score += 500;
-      breakdown.audio = "+500 (audio preferido)";
-    } else if (bestIdx > 0) {
-      score += 400 - (bestIdx * 80);
-      breakdown.audio = `+${score} (audio en pref ${bestIdx + 1})`;
-    } else if (audio.length === 0) {
-      score += 50;
-      breakdown.audio = "+50";
-    } else {
-      score += 0;
-      breakdown.audio = "+0";
-    }
-  }
-
-  const qual = detectQuality(text);
-  if (!prefs.qualities || prefs.qualities.length === 0) {
-    score += 150;
-    breakdown.quality = "+150";
-  } else if (prefs.qualities.includes(qual)) {
+  if (!prefs.qualities?.length || prefs.qualities.includes(quality)) {
     score += 300;
-    breakdown.quality = `+300 (${qual})`;
   } else {
     score += 0;
-    breakdown.quality = "+0 (filtrada)";
   }
 
-  const subs = detectSubtitleLangs(text);
   let wantedSub = null;
-  if (prefs.subtitleMap) {
-    for (const lang of audio) {
-      if (prefs.subtitleMap[lang]) {
-        wantedSub = prefs.subtitleMap[lang];
-        break;
-      }
+  for (const lang of audioLangs) {
+    if (prefs.subtitleMap?.[lang] && prefs.subtitleMap[lang] !== "none") {
+      wantedSub = prefs.subtitleMap[lang];
+      break;
     }
   }
 
-  if (!wantedSub || wantedSub === "none") {
-    score += 100;
-    breakdown.subs = "+100";
-  } else if (subs.includes(wantedSub)) {
-    score += 150;
-    breakdown.subs = `+150 (sub ${wantedSub})`;
-  } else {
-    score += 20;
-    breakdown.subs = "+20";
-  }
+  if (!wantedSub) score += 100;
+  else if (subtitles.includes(wantedSub)) score += 150;
+  else score += 20;
 
   const seeders = parseInt(stream._seeders) || 0;
   score += Math.min(50, Math.round(Math.log10(seeders + 1) * 20));
 
-  return { score, breakdown };
-}
-
-function selectBest(streams, prefs) {
-  if (!streams || streams.length === 0) return null;
-
-  let filtered = streams;
-  if (prefs.qualities && prefs.qualities.length > 0) {
-    filtered = streams.filter(s => {
-      const q = detectQuality([(s.name || ""), (s.title || "")].join(" "));
-      return prefs.qualities.includes(q);
-    });
-  }
-
-  if (filtered.length === 0) filtered = streams;
-
-  return filtered
-    .map(s => ({ ...s, _score: scoreStream(s, prefs).score }))
-    .sort((a, b) => b._score - a._score)[0];
+  return score;
 }
 
 async function fetchFromAddon(baseUrl, type, id) {
-  const cleanUrl = baseUrl.replace(/\/+$/, "").replace(/\/manifest\.json$/, "");
-  const url = `${cleanUrl}/stream/${type}/${id}.json`;
-  
-  try {
-    console.log(`  [proxy] ${url}`);
-    const resp = await axios.get(url, { timeout: 12000 });
-    const raw = resp.data?.streams || [];
+  const url = `${cleanUrl(baseUrl)}/stream/${type}/${id}.json`;
 
-    return raw.map(s => {
-      const fullText = [(s.name || ""), (s.title || "")].join(" ");
+  try {
+    const resp = await axios.get(url, HTTP_CONFIG);
+    const streams = resp.data?.streams || [];
+
+    return streams.map(s => {
+      const fullText = `${s.name || ""} ${s.title || ""}`;
       const seedersMatch = fullText.match(/(?:👥|seeds?:?)\s*(\d+)/i);
+
       return {
         infoHash: s.infoHash,
         fileIdx: s.fileIdx,
@@ -162,26 +139,24 @@ async function fetchFromAddon(baseUrl, type, id) {
         _rawName: s.name,
         _rawTitle: s.title,
         _seeders: seedersMatch ? parseInt(seedersMatch[1]) : 0,
-        _source: new URL(cleanUrl).hostname,
+        _source: new URL(cleanUrl(baseUrl)).hostname
       };
     });
   } catch (err) {
-    console.error(`  [proxy] Error: ${err.message}`);
+    console.error(`Error ${baseUrl}: ${err.message}`);
     return [];
   }
 }
 
 async function getAllStreams(type, id, addonUrls) {
-  if (!addonUrls || addonUrls.length === 0) return [];
-  
-  const results = await Promise.allSettled(
-    addonUrls.map(url => fetchFromAddon(url, type, id))
-  );
-  
-  const streams = [];
-  for (const r of results) {
-    if (r.status === "fulfilled") streams.push(...r.value);
-  }
+  if (!addonUrls?.length) return [];
+
+  const promises = addonUrls.map(url => fetchFromAddon(url, type, id));
+  const results = await Promise.allSettled(promises);
+
+  const streams = results
+    .filter(r => r.status === "fulfilled")
+    .flatMap(r => r.value);
 
   const seen = new Set();
   return streams.filter(s => {
@@ -190,6 +165,16 @@ async function getAllStreams(type, id, addonUrls) {
     seen.add(s.infoHash);
     return true;
   });
+}
+
+function mergeConfig(base, override) {
+  const result = { ...base };
+  for (const [key, value] of Object.entries(override || {})) {
+    if (value !== undefined && value !== null && value !== "") {
+      result[key] = value;
+    }
+  }
+  return result;
 }
 
 const manifest = {
@@ -203,49 +188,36 @@ const manifest = {
   idPrefixes: ["tt"],
   behaviorHints: {
     configurable: true,
-    configurationRequired: false,
-    adult: false
+    configurationRequired: false
   }
 };
 
-function mergeConfig(base, override) {
-  const result = { ...base };
-  for (const key of Object.keys(override || {})) {
-    if (override[key] !== undefined && override[key] !== null && override[key] !== "") {
-      result[key] = override[key];
-    }
-  }
-  return result;
-}
-
 async function streamHandler({ type, id, config }) {
-  console.log(`[handler] ${type} ${id}`);
+  console.log(`[stream] ${type} ${id}`);
 
   const prefs = mergeConfig(DEFAULT_CONFIG, config);
-  
   let addonUrls = prefs.addonUrls;
+
   if (typeof addonUrls === "string") {
-    addonUrls = addonUrls.split(",").map(u => u.trim()).filter(u => u);
+    addonUrls = addonUrls.split(",").map(u => u.trim()).filter(Boolean);
   }
-  
-  if (addonUrls.length === 0) {
+
+  if (!addonUrls?.length) {
+    console.log("[stream] No hay addons configurados");
     return { streams: [] };
   }
 
   const all = await getAllStreams(type, id, addonUrls);
-  console.log(`[handler] Streams: ${all.length}`);
+  console.log(`[stream] ${all.length} streams`);
 
-  if (all.length === 0) return { streams: [] };
+  if (!all.length) return { streams: [] };
 
-  const best = selectBest(all, prefs);
-  if (!best) return { streams: [] };
+  const scored = all.map(s => ({ ...s, _score: scoreStream(s, prefs) }));
+  const best = scored.sort((a, b) => b._score - a._score)[0];
 
-  console.log(`[handler] Ganador: "${best._rawName}" score: ${best._score}`);
+  console.log(`[stream] Mejor: "${best._rawName}" (score: ${best._score})`);
 
-  const result = {
-    name: best._rawName || "Smart Selector",
-    title: best.title || best._rawTitle
-  };
+  const result = { name: best._rawName || "Smart Selector" };
 
   if (best.infoHash) {
     result.infoHash = best.infoHash;
@@ -253,10 +225,8 @@ async function streamHandler({ type, id, config }) {
   } else if (best.url) {
     result.url = best.url;
   }
-  
-  if (best.behaviorHints) {
-    result.behaviorHints = best.behaviorHints;
-  }
+
+  if (best.behaviorHints) result.behaviorHints = best.behaviorHints;
 
   return { streams: [result] };
 }
