@@ -1,39 +1,42 @@
-function selectBestStream(streams, prefs) {
-  const scored = streams.map(s => {
-    let score = 0;
-    const text = s._rawText;
+const QUALITY_RANK = { "2160p": 5, "4k": 5, "1080p": 4, "720p": 3, "480p": 2 };
 
-    // 1. Puntuación por Idioma (Soporta múltiples idiomas preferidos)
-    const languageMap = {
-      spa: /\b(spa|esp|spanish|castellano|español|latino|latam)\b/i,
-      eng: /\b(eng|english|ingles)\b/i
-    };
+const LANGUAGE_PATTERNS = {
+  spa: /\b(spa|esp|spanish|castellano|español|latino|latam)\b/i,
+  eng: /\b(eng|english|ingles)\b/i
+};
 
-    prefs.audioPrefs.forEach(langCode => {
-      const regex = languageMap[langCode];
-      if (regex && regex.test(text)) {
-        score += 500; // Gran prioridad al idioma
-      }
-    });
+function scoreStream(stream, prefs) {
+  let score = 0;
+  const text = stream._rawText;
 
-    // 2. Puntuación por Calidad (Soporta lista de calidades)
-    prefs.qualities.forEach((q, index) => {
-      if (text.includes(q.toLowerCase())) {
-        // Más puntos si está al principio de tu lista de preferidos
-        score += (300 - (index * 50)); 
-      }
-    });
-
-    // 3. Bonus por Seeders (Pequeño desempate)
-    const seedersMatch = text.match(/👥\s*(\d+)/);
-    if (seedersMatch) {
-      score += Math.min(parseInt(seedersMatch[1]) / 10, 50);
-    }
-
-    return { ...s, _score: score };
+  // 1. Prioridad de Idioma (Prioridad Máxima: 500pts)
+  const langMatch = (Array.isArray(prefs.audioPrefs) ? prefs.audioPrefs : [prefs.audioLang || 'spa']);
+  langMatch.forEach(lang => {
+    if (LANGUAGE_PATTERNS[lang]?.test(text)) score += 500;
   });
 
-  // Ordenar de mayor a menor puntuación y devolver el mejor
+  // 2. Calidad (300pts si coincide)
+  const preferredQuality = Array.isArray(prefs.qualities) ? prefs.qualities[0] : (prefs.quality || "1080p");
+  if (text.includes(preferredQuality)) {
+    score += 300;
+  } else if (text.includes("1080p") && preferredQuality === "720p") {
+    score += 100; // Bonus pequeño por mejor calidad de la pedida
+  }
+
+  // 3. Bonus por Seeders (Desempate)
+  score += Math.min(stream._seeders * 0.5, 50);
+
+  // 4. Penalización por archivos excesivamente pesados (Remux)
+  if (stream._sizeGB > 20 && !text.includes("2160p")) {
+    score -= 100;
+  }
+
+  return score;
+}
+
+function selectBestStream(streams, prefs) {
+  if (!streams.length) return null;
+  const scored = streams.map(s => ({ ...s, _score: scoreStream(s, prefs) }));
   return scored.sort((a, b) => b._score - a._score)[0];
 }
 
