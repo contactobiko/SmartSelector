@@ -4,6 +4,7 @@ const path    = require("path");
 
 let addonInterface;
 try {
+  // Cargamos tu lógica original
   addonInterface = require("./addon.js");
 } catch (err) {
   console.error("\n❌ ERROR al cargar addon.js:");
@@ -17,44 +18,38 @@ const app  = express();
 app.use(cors());
 app.use(express.json());
 
-// Servir la interfaz web
+// 1. Servir la web de configuración
 app.use(express.static(path.join(__dirname, 'public')));
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
-app.get('/configure', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get("/", (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
-// Decodificador seguro para Base64-URL (Soluciona el fallo en Render)
-function decodeConfig(configStr) {
-  try {
-    // Restaurar caracteres estándar de Base64
-    let base64 = configStr.replace(/-/g, '+').replace(/_/g, '/');
-    return JSON.parse(Buffer.from(base64, "base64").toString("utf8"));
-  } catch (e) {
-    console.error("Error decodificando config:", e.message);
-    return {};
-  }
-}
-
-// Rutas de Manifest
+// 2. Rutas del Manifest (MUY IMPORTANTE: Stremio necesita ambas)
 app.get("/manifest.json", (req, res) => res.json(addonInterface.manifest));
 app.get("/:config/manifest.json", (req, res) => res.json(addonInterface.manifest));
 
-// Rutas de Streams
+// 3. Rutas de los Streams
+app.get("/stream/:type/:id.json", handleStream);
 app.get("/:config/stream/:type/:id.json", handleStream);
-app.get("/stream/:type/:id.json",          handleStream);
 
 async function handleStream(req, res) {
-  const { type, id } = req.params;
+  const { type, id, config: configParam } = req.params;
   let config = {};
-  
-  if (req.params.config) {
-    config = decodeConfig(req.params.config);
+
+  if (configParam) {
+    try {
+      // Decodificación segura (reparamos lo que el navegador cambió para la URL)
+      const base64 = configParam.replace(/-/g, '+').replace(/_/g, '/');
+      config = JSON.parse(Buffer.from(base64, "base64").toString("utf8"));
+    } catch (e) {
+      console.error("❌ Error decodificando config:", e.message);
+    }
   }
 
   try {
+    // Llamamos a tu función get original de addon.js
     const result = await addonInterface.get({ resource: "stream", type, id, config });
     res.json(result);
   } catch (err) {
-    console.error("[stream] Error:", err.message);
+    console.error("❌ [stream] Error:", err.message);
     res.status(500).json({ streams: [] });
   }
 }
@@ -62,5 +57,5 @@ async function handleStream(req, res) {
 app.get("/health", (req, res) => res.json({ status: "ok" }));
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`✅ Servidor corriendo en el puerto ${PORT}`);
+  console.log(`✅ Smart Selector online en puerto ${PORT}`);
 });
