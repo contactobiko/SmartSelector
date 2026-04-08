@@ -9,39 +9,52 @@ const manifest = {
   resources: ["stream"],
   types: ["movie", "series"],
   idPrefixes: ["tt"],
-  behaviorHints: { configurable: true }
+  behaviorHints: { configurable: true, configurationRequired: false }
 };
 
 async function get({ resource, type, id, config }) {
   if (resource !== "stream") return { streams: [] };
 
-  const addonUrls = config.addonUrls ? config.addonUrls.split(",") : [];
-  if (!addonUrls.length) return { streams: [] };
+  // --- ARREGLO PARA EL ERROR .split ---
+  let addonUrls = [];
+  if (config.addonUrls) {
+    if (Array.isArray(config.addonUrls)) {
+      addonUrls = config.addonUrls; // Ya es una lista
+    } else if (typeof config.addonUrls === "string") {
+      addonUrls = config.addonUrls.split(",").map(u => u.trim()); // Es texto, lo dividimos
+    }
+  }
 
+  if (addonUrls.length === 0) {
+    console.warn("⚠️ No hay addons configurados.");
+    return { streams: [] };
+  }
+
+  // Adaptación a las variables de tu index.html
   const prefs = {
-    audioLang: config.audioLang || "spa",
-    quality: config.quality || "1080p"
+    audioPrefs: config.audioPrefs || ["spa"],
+    qualities: config.qualities || ["1080p", "720p"]
   };
 
-  console.log(`[Smart] Buscando ${type} ${id} para idioma: ${prefs.audioLang}`);
+  console.log(`[Smart] Buscando ${type} ${id} | Addons: ${addonUrls.length}`);
 
-  const allStreams = await getAllStreams(type, id, addonUrls);
-  const best = selectBestStream(allStreams, prefs);
+  try {
+    const allStreams = await getAllStreams(type, id, addonUrls);
+    if (!allStreams.length) return { streams: [] };
 
-  if (!best) return { streams: [] };
+    const best = selectBestStream(allStreams, prefs);
+    if (!best) return { streams: [] };
 
-  // Retornamos el ganador formateado para Stremio
-  return {
-    streams: [{
-      name: `Smart Selector\n⭐ ${best._finalScore} pts`,
-      title: best.title || best.name,
-      infoHash: best.infoHash,
-      url: best.url,
-      externalUrl: best.externalUrl,
-      fileIdx: best.fileIdx,
-      behaviorHints: best.behaviorHints
-    }]
-  };
+    return {
+      streams: [{
+        ...best,
+        name: `Smart Selector\n⭐ Mejor opción encontrada`
+      }]
+    };
+  } catch (err) {
+    console.error("❌ Error en addon.get:", err.message);
+    return { streams: [] };
+  }
 }
 
 module.exports = { manifest, get };
