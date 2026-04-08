@@ -1,5 +1,6 @@
 const express = require("express");
 const cors    = require("cors");
+const path    = require("path");
 
 let addonInterface;
 try {
@@ -10,14 +11,24 @@ try {
   process.exit(1);
 }
 
-const PORT = process.env.PORT || 10000;
+const PORT = process.env.PORT || 7000;
 const app  = express();
 
 app.use(cors());
 app.use(express.json());
 
-app.get("/manifest.json", (req, res) => res.json(addonInterface.manifest));
+// 1. Servir la carpeta public (nuestra web de configuración)
+app.use(express.static(path.join(__dirname, 'public')));
 
+// 2. Rutas para la página web
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get('/configure', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+
+// 3. Rutas del Manifest (¡Importante añadir la versión con :config!)
+app.get("/manifest.json", (req, res) => res.json(addonInterface.manifest));
+app.get("/:config/manifest.json", (req, res) => res.json(addonInterface.manifest));
+
+// 4. Rutas de los streams
 app.get("/:config/stream/:type/:id.json", handleStream);
 app.get("/stream/:type/:id.json",          handleStream);
 
@@ -39,25 +50,5 @@ async function handleStream(req, res) {
 app.get("/health", (req, res) => res.json({ status: "ok" }));
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`
-╔═══════════════════════════════════════════════════════╗
-║          🎬  Stremio Smart Selector  🎬               ║
-╠═══════════════════════════════════════════════════════╣
-║                                                       ║
-║  ✅  Servidor corriendo                               ║
-║                                                       ║
-║  Instalar en Stremio:                                 ║
-║  → http://127.0.0.1:${PORT}/manifest.json             ║
-║                                                       ║
-║  (Deja esta ventana abierta mientras usas Stremio)    ║
-║                                                       ║
-╚═══════════════════════════════════════════════════════╝
-`);
-}).on("error", (err) => {
-  if (err.code === "EADDRINUSE") {
-    console.error(`\n❌ Puerto ${PORT} en uso. Prueba: set PORT=7001 && node index.js\n`);
-  } else {
-    console.error("❌ Error:", err.message);
-  }
-  process.exit(1);
+  console.log(`✅ Servidor corriendo en el puerto ${PORT}`);
 });
