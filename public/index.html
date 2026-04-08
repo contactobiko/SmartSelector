@@ -3,143 +3,62 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stremio Smart Selector - Configuración</title>
+    <title>Smart Selector Config</title>
     <style>
-        body { font-family: Arial, sans-serif; background: #1a1a1a; color: #fff; max-width: 600px; margin: 0 auto; padding: 20px; }
-        .container { background: #2a2a2a; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
-        h1 { color: #8a5aE9; text-align: center; }
-        label { display: block; margin-top: 15px; font-weight: bold; }
-        input, select { width: 100%; padding: 10px; margin-top: 5px; border-radius: 4px; border: 1px solid #444; background: #333; color: white; box-sizing: border-box; }
-        button.primary { width: 100%; padding: 15px; margin-top: 25px; background: #8a5aE9; color: white; border: none; border-radius: 4px; font-size: 16px; font-weight: bold; cursor: pointer; }
-        button.primary:hover { background: #7148c4; }
-        
-        /* Estilos para URLs múltiples */
-        .url-row { display: flex; gap: 10px; margin-top: 5px; }
-        .url-row input { margin-top: 0; }
-        .btn-remove { background: #ff4444; color: white; border: none; border-radius: 4px; padding: 0 15px; cursor: pointer; font-weight: bold; }
-        .btn-remove:hover { background: #cc0000; }
-        .btn-add { background: #444; color: white; border: none; border-radius: 4px; padding: 10px; margin-top: 10px; cursor: pointer; width: 100%; font-weight: bold; }
-        .btn-add:hover { background: #555; }
-        
-        .install-link { margin-top: 15px; word-break: break-all; background: #111; padding: 10px; border-radius: 4px; display: none; font-size: 14px;}
+        body { font-family: sans-serif; background: #111; color: white; padding: 20px; max-width: 500px; margin: auto; }
+        .box { background: #222; padding: 20px; border-radius: 10px; border: 1px solid #8a5aE9; }
+        input, select, button { width: 100%; padding: 10px; margin: 10px 0; border-radius: 5px; border: none; }
+        button { background: #8a5aE9; color: white; font-weight: bold; cursor: pointer; }
+        .url-row { display: flex; gap: 5px; }
+        .btn-del { background: #ff4444; width: 40px; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🎬 Smart Selector</h1>
-        <p>Configura tus preferencias. El addon elegirá automáticamente el mejor stream.</p>
-        
-        <form id="configForm">
-            <label>🔗 URLs de addons instalados (ej. Torrentio, Knightcrawler):</label>
-            <div id="urlList">
-                <div class="url-row">
-                    <input type="url" class="addon-url" placeholder="https://..." required>
-                    <button type="button" class="btn-remove" onclick="removeUrl(this)" style="display:none;">X</button>
-                </div>
-            </div>
-            <button type="button" class="btn-add" onclick="addUrlField()">+ Añadir otra URL</button>
-
-            <label>🔊 Idioma de Audio:</label>
-            <select id="audioLang">
-                <option value="spa" selected>Español</option>
-                <option value="eng">Inglés</option>
-                <option value="fra">Francés</option>
-                <option value="any">Cualquiera</option>
-            </select>
-
-            <label>💬 Subtítulos:</label>
-            <select id="subtitleLang">
-                <option value="none" selected>Ninguno (No buscar subs)</option>
-                <option value="spa">Español</option>
-                <option value="eng">Inglés</option>
-                <option value="any">Cualquiera</option>
-            </select>
-
-            <label>🎬 Calidad Preferida:</label>
-            <select id="quality">
-                <option value="2160p">4K / 2160p</option>
-                <option value="1080p" selected>1080p</option>
-                <option value="720p">720p</option>
-                <option value="any">Cualquiera</option>
-            </select>
-
-            <label>🌱 Seeders Mínimos:</label>
-            <input type="number" id="minSeeders" value="5" min="0">
-
-            <button type="submit" class="primary">Instalar en Stremio</button>
-        </form>
-
-        <div id="linkContainer" class="install-link">
-            <p>Si Stremio no se abre automáticamente, copia este enlace y pégalo en el buscador de Stremio:</p>
-            <a id="copyLink" href="#" style="color: #8a5aE9;"></a>
+    <div class="box">
+        <h2>🎬 Smart Selector</h2>
+        <label>Addon URLs (Torrentio, etc):</label>
+        <div id="urlContainer">
+            <div class="url-row"><input type="url" class="addon-url" placeholder="https://..." required></div>
         </div>
+        <button type="button" onclick="addInput()" style="background:#444">+ Añadir otro</button>
+
+        <label>Audio:</label>
+        <select id="audioLang"><option value="spa">Español</option><option value="eng">Inglés</option></select>
+        
+        <label>Calidad:</label>
+        <select id="quality"><option value="1080p">1080p</option><option value="2160p">4K</option><option value="720p">720p</option></select>
+
+        <button onclick="install()">INSTALAR ADDON</button>
     </div>
 
     <script>
-        function addUrlField() {
-            const list = document.getElementById('urlList');
-            const row = document.createElement('div');
-            row.className = 'url-row';
-            row.innerHTML = `
-                <input type="url" class="addon-url" placeholder="https://..." required>
-                <button type="button" class="btn-remove" onclick="removeUrl(this)">X</button>
-            `;
-            list.appendChild(row);
-            updateRemoveButtons();
+        function addInput() {
+            const div = document.createElement('div');
+            div.className = 'url-row';
+            div.innerHTML = '<input type="url" class="addon-url" required><button class="btn-del" onclick="this.parentElement.remove()">X</button>';
+            document.getElementById('urlContainer').appendChild(div);
         }
 
-        function removeUrl(btn) {
-            btn.parentElement.remove();
-            updateRemoveButtons();
-        }
-
-        function updateRemoveButtons() {
-            const rows = document.querySelectorAll('.url-row');
-            const firstBtn = rows[0].querySelector('.btn-remove');
-            // Solo muestra el botón de borrar si hay más de un campo
-            firstBtn.style.display = rows.length > 1 ? 'block' : 'none';
-        }
-
-        document.getElementById('configForm').addEventListener('submit', (e) => {
-            e.preventDefault();
-            
-            // Recolectar todas las URLs válidas
-            const urlInputs = document.querySelectorAll('.addon-url');
-            const urls = Array.from(urlInputs)
-                              .map(input => input.value.trim())
-                              .filter(val => val !== '');
-            
+        function install() {
+            const urls = Array.from(document.querySelectorAll('.addon-url')).map(i => i.value).filter(v => v);
             const config = {
-                // Las unimos por comas para que tu addon.js original lo lea perfectamente sin cambiar tu código
                 addonUrls: urls.join(','),
                 audioLang: document.getElementById('audioLang').value,
-                subtitleLang: document.getElementById('subtitleLang').value,
                 quality: document.getElementById('quality').value,
-                minSeeders: document.getElementById('minSeeders').value
+                subtitleLang: 'none',
+                minSeeders: 5
             };
 
-            // Codificación Base64-URL segura (Evita que el carácter '/' rompa la ruta del servidor)
-            const configStr = unescape(encodeURIComponent(JSON.stringify(config)));
-            const base64Config = btoa(configStr)
+            // Codificación segura para URLs (Base64 URL Safe)
+            const str = JSON.stringify(config);
+            const base64 = btoa(unescape(encodeURIComponent(str)))
                 .replace(/\+/g, '-')
                 .replace(/\//g, '_')
                 .replace(/=+$/, '');
 
-            const host = window.location.host;
-            const protocol = window.location.protocol === 'https:' ? 'https://' : 'http://';
-            const manifestPath = `/${base64Config}/manifest.json`;
-            
-            const installUrl = `stremio://${host}${manifestPath}`;
-            const copyUrl = `${protocol}${host}${manifestPath}`;
-
-            const linkContainer = document.getElementById('linkContainer');
-            const copyLink = document.getElementById('copyLink');
-            linkContainer.style.display = 'block';
-            copyLink.href = copyUrl;
-            copyLink.textContent = copyUrl;
-
+            const installUrl = `stremio://${window.location.host}/${base64}/manifest.json`;
             window.location.href = installUrl;
-        });
+        }
     </script>
 </body>
 </html>
