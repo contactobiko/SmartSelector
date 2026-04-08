@@ -1,63 +1,40 @@
-const QUALITY_RANK = {
-  "2160p": 5, "4k": 5, "uhd": 5,
-  "1080p": 4, "fhd": 4,
-  "720p": 3, "hd": 3,
-  "480p": 2, "sd": 1, "unknown": 0
-};
-
-const LANGUAGE_PATTERNS = {
-  spa: /\b(spa|esp|spanish|castellano|español|latino|latam)\b/i,
-  eng: /\b(eng|english|ingles)\b/i
-};
-
-function scoreStream(stream, prefs) {
-  let score = 0;
-  const text = stream._rawText;
-
-  // 1. Detección de Calidad
-  let detectedQ = "unknown";
-  for (const q in QUALITY_RANK) {
-    if (text.includes(q)) {
-      detectedQ = q;
-      break;
-    }
-  }
-
-  // Puntos por calidad
-  if (detectedQ === prefs.quality) score += 300;
-  else if (QUALITY_RANK[detectedQ] > QUALITY_RANK[prefs.quality]) score += 100; // Mejor que lo pedido
-  else if (QUALITY_RANK[detectedQ] < QUALITY_RANK[prefs.quality]) score -= 100; // Peor que lo pedido
-
-  // 2. Idioma de Audio (Prioridad Máxima)
-  if (prefs.audioLang !== "any") {
-    const pattern = LANGUAGE_PATTERNS[prefs.audioLang];
-    if (pattern && pattern.test(text)) {
-      score += 500;
-    }
-  }
-
-  // 3. Seeders (Bonus logarítmico para desempate)
-  if (stream._seeders > 0) {
-    score += Math.min(stream._seeders * 0.5, 50);
-  }
-
-  // 4. Penalización por tamaño (Si no es 4K y pesa > 15GB, probablemente sea un Remux pesado)
-  if (prefs.quality !== "2160p" && stream._sizeGB > 15) {
-    score -= 100;
-  }
-
-  return score;
-}
-
 function selectBestStream(streams, prefs) {
-  if (!streams.length) return null;
-  
-  const scored = streams.map(s => ({
-    ...s,
-    _finalScore: scoreStream(s, prefs)
-  }));
+  const scored = streams.map(s => {
+    let score = 0;
+    const text = s._rawText;
 
-  return scored.sort((a, b) => b._finalScore - a._finalScore)[0];
+    // 1. Puntuación por Idioma (Soporta múltiples idiomas preferidos)
+    const languageMap = {
+      spa: /\b(spa|esp|spanish|castellano|español|latino|latam)\b/i,
+      eng: /\b(eng|english|ingles)\b/i
+    };
+
+    prefs.audioPrefs.forEach(langCode => {
+      const regex = languageMap[langCode];
+      if (regex && regex.test(text)) {
+        score += 500; // Gran prioridad al idioma
+      }
+    });
+
+    // 2. Puntuación por Calidad (Soporta lista de calidades)
+    prefs.qualities.forEach((q, index) => {
+      if (text.includes(q.toLowerCase())) {
+        // Más puntos si está al principio de tu lista de preferidos
+        score += (300 - (index * 50)); 
+      }
+    });
+
+    // 3. Bonus por Seeders (Pequeño desempate)
+    const seedersMatch = text.match(/👥\s*(\d+)/);
+    if (seedersMatch) {
+      score += Math.min(parseInt(seedersMatch[1]) / 10, 50);
+    }
+
+    return { ...s, _score: score };
+  });
+
+  // Ordenar de mayor a menor puntuación y devolver el mejor
+  return scored.sort((a, b) => b._score - a._score)[0];
 }
 
 module.exports = { selectBestStream };
