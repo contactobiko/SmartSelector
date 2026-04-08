@@ -3,61 +3,277 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Selector Config</title>
+    <title>Smart Selector - Configuración</title>
     <style>
-        body { font-family: sans-serif; background: #111; color: white; padding: 20px; max-width: 500px; margin: auto; }
-        .box { background: #222; padding: 20px; border-radius: 10px; border: 1px solid #8a5aE9; }
-        input, select, button { width: 100%; padding: 10px; margin: 10px 0; border-radius: 5px; border: none; }
-        button { background: #8a5aE9; color: white; font-weight: bold; cursor: pointer; }
-        .url-row { display: flex; gap: 5px; }
-        .btn-del { background: #ff4444; width: 40px; }
+        * { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #121212; color: #e0e0e0; margin: 0; padding: 20px; min-height: 100vh; }
+        .container { max-width: 700px; margin: 0 auto; }
+        h1 { color: #bb86fc; text-align: center; margin-bottom: 5px; }
+        .subtitle { text-align: center; color: #888; margin-bottom: 30px; }
+        .card { background: #1e1e1e; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.3); }
+        .card-title { color: #bb86fc; font-size: 1.1em; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; }
+        label { display: block; margin: 12px 0 6px; font-weight: 500; color: #b0b0b0; }
+        .help { font-size: 0.85em; color: #777; margin-top: 2px; }
+        input[type="text"], input[type="number"], select { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #333; background: #2a2a2a; color: #fff; font-size: 14px; }
+        input:focus, select:focus { outline: none; border-color: #bb86fc; }
+        .url-row { display: flex; gap: 10px; margin-bottom: 8px; }
+        .url-row input { flex: 1; }
+        .btn-add { background: #333; color: #bb86fc; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+        .btn-add:hover { background: #444; }
+        .btn-remove { background: #d32f2f; color: #fff; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; }
+        .btn-remove:hover { background: #b71c1c; }
+        .checkbox-group { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; }
+        .checkbox-item { display: flex; align-items: center; gap: 8px; background: #2a2a2a; padding: 10px 12px; border-radius: 8px; cursor: pointer; transition: background 0.2s; }
+        .checkbox-item:hover { background: #333; }
+        .checkbox-item input { width: 18px; height: 18px; accent-color: #bb86fc; cursor: pointer; }
+        .checkbox-item.selected { background: #3a2a4a; border: 1px solid #bb86fc; }
+        .lang-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+        .lang-row select { flex: 1; }
+        .lang-row .arrow { color: #bb86fc; font-weight: bold; }
+        .lang-row .sub-label { color: #888; font-size: 12px; min-width: 80px; }
+        .btn-install { width: 100%; padding: 16px; background: linear-gradient(135deg, #bb86fc, #6200ea); color: #fff; border: none; border-radius: 10px; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 20px; transition: transform 0.2s, box-shadow 0.2s; }
+        .btn-install:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(98, 0, 234, 0.4); }
+        .install-result { margin-top: 20px; padding: 15px; background: #1a1a1a; border-radius: 8px; display: none; }
+        .install-result a { color: #bb86fc; word-break: break-all; }
+        .info-box { background: #2a2a2a; border-left: 4px solid #bb86fc; padding: 12px; margin-top: 15px; border-radius: 0 8px 8px 0; font-size: 0.9em; color: #aaa; }
     </style>
 </head>
 <body>
-    <div class="box">
-        <h2>🎬 Smart Selector</h2>
-        <label>Addon URLs (Torrentio, etc):</label>
-        <div id="urlContainer">
-            <div class="url-row"><input type="url" class="addon-url" placeholder="https://..." required></div>
+    <div class="container">
+        <h1>Smart Selector</h1>
+        <p class="subtitle">Configura tu addon de Stremio</p>
+
+        <div class="card">
+            <div class="card-title">🔗 URLs de Addons</div>
+            <div id="urlList">
+                <div class="url-row">
+                    <input type="text" class="addon-url" placeholder="https://torrentio.strem.fun/sort=seeders/manifest.json">
+                    <button class="btn-remove" onclick="removeUrl(this)">×</button>
+                </div>
+            </div>
+            <button class="btn-add" onclick="addUrl()">+ Añadir otra URL</button>
+            <div class="info-box">
+                Añade las URLs de los addons que quieras consultar. Déjalas vacías si solo quieres usar las predeterminadas del addon.
+            </div>
         </div>
-        <button type="button" onclick="addInput()" style="background:#444">+ Añadir otro</button>
 
-        <label>Audio:</label>
-        <select id="audioLang"><option value="spa">Español</option><option value="eng">Inglés</option></select>
-        
-        <label>Calidad:</label>
-        <select id="quality"><option value="1080p">1080p</option><option value="2160p">4K</option><option value="720p">720p</option></select>
+        <div class="card">
+            <div class="card-title">🔊 Orden de Preferencia de Audio</div>
+            <div id="audioList">
+                <div class="lang-row">
+                    <select class="audio-lang">
+                        <option value="spa">Español</option>
+                        <option value="eng">Inglés</option>
+                        <option value="fra">Francés</option>
+                        <option value="deu">Alemán</option>
+                        <option value="ita">Italiano</option>
+                        <option value="por">Portugués</option>
+                        <option value="jpn">Japonés</option>
+                        <option value="kor">Coreano</option>
+                        <option value="zho">Chino</option>
+                        <option value="rus">Ruso</option>
+                    </select>
+                    <button class="btn-remove" onclick="removeAudio(this)">×</button>
+                </div>
+            </div>
+            <button class="btn-add" onclick="addAudio()">+ Añadir siguiente preferencia</button>
+            <div class="info-box">
+                Orden de búsqueda: si no se encuentra el primer idioma, busca el segundo, y así sucesivamente.
+            </div>
+        </div>
 
-        <button onclick="install()">INSTALAR ADDON</button>
+        <div class="card">
+            <div class="card-title">💬 Subtítulos por Idioma de Audio</div>
+            <p class="help">Selecciona qué subtítulos quieres según el idioma del audio.</p>
+            <div id="subtitleList">
+                <div class="lang-row">
+                    <select class="audio-source" onchange="updateSubLabel(this)">
+                        <option value="spa">Español</option>
+                        <option value="eng">Inglés</option>
+                        <option value="fra">Francés</option>
+                        <option value="deu">Alemán</option>
+                        <option value="ita">Italiano</option>
+                        <option value="por">Portugués</option>
+                        <option value="jpn">Japonés</option>
+                        <option value="kor">Coreano</option>
+                    </select>
+                    <span class="arrow">→</span>
+                    <select class="subtitle-target">
+                        <option value="none">Sin subtítulos</option>
+                        <option value="spa">Español</option>
+                        <option value="eng">Inglés</option>
+                        <option value="fra">Francés</option>
+                        <option value="deu">Alemán</option>
+                        <option value="ita">Italiano</option>
+                    </select>
+                    <button class="btn-remove" onclick="removeSubtitle(this)">×</button>
+                </div>
+            </div>
+            <button class="btn-add" onclick="addSubtitle()">+ Añadir idioma</button>
+            <div class="info-box">
+                Ejemplo: Si el audio es <strong>Español</strong> → <strong>Sin subtítulos</strong>, pero si es <strong>Inglés</strong> → <strong>Español</strong>.
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">🎬 Calidades a Mostrar</div>
+            <div class="checkbox-group">
+                <label class="checkbox-item selected">
+                    <input type="checkbox" class="quality-cb" value="2160p" checked> 4K / 2160p
+                </label>
+                <label class="checkbox-item selected">
+                    <input type="checkbox" class="quality-cb" value="1080p" checked> 1080p
+                </label>
+                <label class="checkbox-item selected">
+                    <input type="checkbox" class="quality-cb" value="720p" checked> 720p
+                </label>
+                <label class="checkbox-item selected">
+                    <input type="checkbox" class="quality-cb" value="cam" checked> CAM / TS
+                </label>
+                <label class="checkbox-item selected">
+                    <input type="checkbox" class="quality-cb" value="480p" checked> 480p
+                </label>
+            </div>
+            <div class="info-box">
+                Solo se mostrarán streams de las calidades seleccionadas. Desmarca las que no quieras ver.
+            </div>
+        </div>
+
+        <button class="btn-install" onclick="install()">Instalar en Stremio</button>
+
+        <div id="installResult" class="install-result">
+            <p>Copia este enlace y pégalo en el instalador de addons de Stremio:</p>
+            <a id="installLink" href="#"></a>
+        </div>
     </div>
 
     <script>
-        function addInput() {
+        function addUrl() {
             const div = document.createElement('div');
             div.className = 'url-row';
-            div.innerHTML = '<input type="url" class="addon-url" required><button class="btn-del" onclick="this.parentElement.remove()">X</button>';
-            document.getElementById('urlContainer').appendChild(div);
+            div.innerHTML = `
+                <input type="text" class="addon-url" placeholder="https://torrentio.strem.fun/sort=seeders/manifest.json">
+                <button class="btn-remove" onclick="removeUrl(this)">×</button>
+            `;
+            document.getElementById('urlList').appendChild(div);
         }
 
+        function removeUrl(btn) {
+            const rows = document.querySelectorAll('.url-row');
+            if (rows.length > 1) btn.parentElement.remove();
+        }
+
+        function addAudio() {
+            const div = document.createElement('div');
+            div.className = 'lang-row';
+            div.innerHTML = `
+                <select class="audio-lang">
+                    <option value="eng">Inglés</option>
+                    <option value="spa">Español</option>
+                    <option value="fra">Francés</option>
+                    <option value="deu">Alemán</option>
+                    <option value="ita">Italiano</option>
+                    <option value="por">Portugués</option>
+                    <option value="jpn">Japonés</option>
+                    <option value="kor">Coreano</option>
+                    <option value="zho">Chino</option>
+                    <option value="rus">Ruso</option>
+                </select>
+                <button class="btn-remove" onclick="removeAudio(this)">×</button>
+            `;
+            document.getElementById('audioList').appendChild(div);
+        }
+
+        function removeAudio(btn) {
+            const rows = document.querySelectorAll('#audioList .lang-row');
+            if (rows.length > 1) btn.parentElement.remove();
+        }
+
+        function addSubtitle() {
+            const div = document.createElement('div');
+            div.className = 'lang-row';
+            div.innerHTML = `
+                <select class="audio-source" onchange="updateSubLabel(this)">
+                    <option value="eng">Inglés</option>
+                    <option value="spa">Español</option>
+                    <option value="fra">Francés</option>
+                    <option value="deu">Alemán</option>
+                    <option value="ita">Italiano</option>
+                    <option value="por">Portugués</option>
+                    <option value="jpn">Japonés</option>
+                    <option value="kor">Coreano</option>
+                </select>
+                <span class="arrow">→</span>
+                <select class="subtitle-target">
+                    <option value="none">Sin subtítulos</option>
+                    <option value="spa">Español</option>
+                    <option value="eng">Inglés</option>
+                    <option value="fra">Francés</option>
+                    <option value="deu">Alemán</option>
+                    <option value="ita">Italiano</option>
+                </select>
+                <button class="btn-remove" onclick="removeSubtitle(this)">×</button>
+            `;
+            document.getElementById('subtitleList').appendChild(div);
+        }
+
+        function removeSubtitle(btn) {
+            const rows = document.querySelectorAll('#subtitleList .lang-row');
+            if (rows.length > 1) btn.parentElement.remove();
+        }
+
+        function updateSubLabel(select) {
+            const row = select.closest('.lang-row');
+            const label = row.querySelector('.sub-label');
+            if (!label) {
+                const span = document.createElement('span');
+                span.className = 'sub-label';
+                row.insertBefore(span, row.firstChild);
+            }
+        }
+
+        document.querySelectorAll('.quality-cb').forEach(cb => {
+            cb.closest('.checkbox-item').classList.toggle('selected', cb.checked);
+            cb.addEventListener('change', () => {
+                cb.closest('.checkbox-item').classList.toggle('selected', cb.checked);
+            });
+        });
+
         function install() {
-            const urls = Array.from(document.querySelectorAll('.addon-url')).map(i => i.value).filter(v => v);
+            const addonUrls = Array.from(document.querySelectorAll('.addon-url'))
+                .map(i => i.value.trim())
+                .filter(v => v.length > 0);
+
+            const audioPrefs = Array.from(document.querySelectorAll('.audio-lang'))
+                .map(s => s.value);
+
+            const subtitleMap = {};
+            document.querySelectorAll('#subtitleList .lang-row').forEach(row => {
+                const audio = row.querySelector('.audio-source').value;
+                const sub = row.querySelector('.subtitle-target').value;
+                subtitleMap[audio] = sub;
+            });
+
+            const qualities = Array.from(document.querySelectorAll('.quality-cb:checked'))
+                .map(cb => cb.value);
+
             const config = {
-                addonUrls: urls.join(','),
-                audioLang: document.getElementById('audioLang').value,
-                quality: document.getElementById('quality').value,
-                subtitleLang: 'none',
-                minSeeders: 5
+                addonUrls: addonUrls,
+                audioPrefs: audioPrefs,
+                subtitleMap: subtitleMap,
+                qualities: qualities
             };
 
-            // Codificación segura para URLs (Base64 URL Safe)
-            const str = JSON.stringify(config);
-            const base64 = btoa(unescape(encodeURIComponent(str)))
-                .replace(/\+/g, '-')
-                .replace(/\//g, '_')
-                .replace(/=+$/, '');
+            const encoded = btoa(encodeURIComponent(JSON.stringify(config)));
+            const host = window.location.host;
+            const protocol = window.location.protocol === 'https:' ? 'https://' : 'http://';
+            const url = `${protocol}${host}/${encoded}/manifest.json`;
 
-            const installUrl = `stremio://${window.location.host}/${base64}/manifest.json`;
-            window.location.href = installUrl;
+            document.getElementById('installLink').href = url;
+            document.getElementById('installLink').textContent = url;
+            document.getElementById('installResult').style.display = 'block';
+
+            window.location.href = `stremio://${host}/${encoded}/manifest.json`;
         }
     </script>
 </body>
