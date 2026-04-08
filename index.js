@@ -17,27 +17,39 @@ const app  = express();
 app.use(cors());
 app.use(express.json());
 
-// 1. Servir la carpeta public (nuestra web de configuración)
+// Servir la interfaz web
 app.use(express.static(path.join(__dirname, 'public')));
-
-// 2. Rutas para la página web
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/configure', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
-// 3. Rutas del Manifest (¡Importante añadir la versión con :config!)
+// Decodificador seguro para Base64-URL (Soluciona el fallo en Render)
+function decodeConfig(configStr) {
+  try {
+    // Restaurar caracteres estándar de Base64
+    let base64 = configStr.replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(Buffer.from(base64, "base64").toString("utf8"));
+  } catch (e) {
+    console.error("Error decodificando config:", e.message);
+    return {};
+  }
+}
+
+// Rutas de Manifest
 app.get("/manifest.json", (req, res) => res.json(addonInterface.manifest));
 app.get("/:config/manifest.json", (req, res) => res.json(addonInterface.manifest));
 
-// 4. Rutas de los streams
+// Rutas de Streams
 app.get("/:config/stream/:type/:id.json", handleStream);
 app.get("/stream/:type/:id.json",          handleStream);
 
 async function handleStream(req, res) {
   const { type, id } = req.params;
   let config = {};
+  
   if (req.params.config) {
-    try { config = JSON.parse(Buffer.from(req.params.config, "base64").toString("utf8")); } catch {}
+    config = decodeConfig(req.params.config);
   }
+
   try {
     const result = await addonInterface.get({ resource: "stream", type, id, config });
     res.json(result);
