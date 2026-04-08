@@ -13,21 +13,14 @@ let addon;
 try {
   addon = require("./addon.js");
 } catch (err) {
-  console.error("Error cargando addon.js:", err.message);
+  console.error("❌ Error crítico cargando addon.js:", err.message);
   process.exit(1);
 }
 
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
-
-app.get("/manifest.json", (req, res) => {
-  res.json(addon.manifest);
-});
-
-app.get("/:config/manifest.json", (req, res) => {
-  res.json(addon.manifest);
-});
+// --- Rutas del Addon ---
+app.get("/", (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
+app.get("/manifest.json", (req, res) => res.json(addon.manifest));
+app.get("/:config/manifest.json", (req, res) => res.json(addon.manifest));
 
 app.get("/stream/:type/:id.json", handleStream);
 app.get("/:config/stream/:type/:id.json", handleStream);
@@ -38,10 +31,12 @@ async function handleStream(req, res) {
 
   if (req.params.config) {
     try {
-      const decoded = Buffer.from(req.params.config, "base64").toString("utf8");
+      // Soporte para base64 estándar y URL-safe
+      const normalizedBase64 = req.params.config.replace(/-/g, '+').replace(/_/g, '/');
+      const decoded = Buffer.from(normalizedBase64, "base64").toString("utf8");
       config = JSON.parse(decoded);
     } catch (e) {
-      console.error("Error decodificando config:", e.message);
+      console.error("⚠️ Error decodificando configuración:", e.message);
     }
   }
 
@@ -49,24 +44,20 @@ async function handleStream(req, res) {
     const result = await addon.get({ resource: "stream", type, id, config });
     res.json(result);
   } catch (err) {
-    console.error("Error en handler:", err.message);
+    console.error(`❌ Error en stream ${type}/${id}:`, err.message);
     res.status(500).json({ streams: [] });
   }
 }
 
-app.get("/health", (req, res) => {
-  res.json({ status: "ok" });
-});
+app.get("/health", (req, res) => res.json({ status: "ok", uptime: process.uptime() }));
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Smart Selector corriendo en puerto ${PORT}`);
-  console.log(`Configurar: http://localhost:${PORT}/`);
-  console.log(`Manifest:   http://localhost:${PORT}/manifest.json`);
-}).on("error", (err) => {
-  if (err.code === "EADDRINUSE") {
-    console.error(`Puerto ${PORT} en uso`);
-    process.exit(1);
-  }
-  console.error("Error:", err.message);
-  process.exit(1);
+  console.log(`
+  ╔════════════════════════════════════════╗
+  ║    🎬 SMART SELECTOR - LIVE 🎉         ║
+  ╠════════════════════════════════════════╣
+  ║ Puerto: ${PORT}                          ║
+  ║ Status: Operacional                    ║
+  ╚════════════════════════════════════════╝
+  `);
 });
