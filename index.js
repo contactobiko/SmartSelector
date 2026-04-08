@@ -4,7 +4,6 @@ const path    = require("path");
 
 let addonInterface;
 try {
-  // Cargamos tu lógica original
   addonInterface = require("./addon.js");
 } catch (err) {
   console.error("\n❌ ERROR al cargar addon.js:");
@@ -18,38 +17,36 @@ const app  = express();
 app.use(cors());
 app.use(express.json());
 
-// 1. Servir la web de configuración
 app.use(express.static(path.join(__dirname, 'public')));
-app.get("/", (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
-// 2. Rutas del Manifest (MUY IMPORTANTE: Stremio necesita ambas)
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
 app.get("/manifest.json", (req, res) => res.json(addonInterface.manifest));
+
 app.get("/:config/manifest.json", (req, res) => res.json(addonInterface.manifest));
 
-// 3. Rutas de los Streams
-app.get("/stream/:type/:id.json", handleStream);
 app.get("/:config/stream/:type/:id.json", handleStream);
+app.get("/stream/:type/:id.json",          handleStream);
 
 async function handleStream(req, res) {
-  const { type, id, config: configParam } = req.params;
+  const { type, id } = req.params;
   let config = {};
-
-  if (configParam) {
+  if (req.params.config) {
     try {
-      // Decodificación segura (reparamos lo que el navegador cambió para la URL)
-      const base64 = configParam.replace(/-/g, '+').replace(/_/g, '/');
-      config = JSON.parse(Buffer.from(base64, "base64").toString("utf8"));
+      config = JSON.parse(decodeURIComponent(Buffer.from(req.params.config, "base64").toString("utf8")));
     } catch (e) {
-      console.error("❌ Error decodificando config:", e.message);
+      try {
+        config = JSON.parse(Buffer.from(req.params.config, "base64").toString("utf8"));
+      } catch {}
     }
   }
-
   try {
-    // Llamamos a tu función get original de addon.js
     const result = await addonInterface.get({ resource: "stream", type, id, config });
     res.json(result);
   } catch (err) {
-    console.error("❌ [stream] Error:", err.message);
+    console.error("[stream] Error:", err.message);
     res.status(500).json({ streams: [] });
   }
 }
@@ -57,5 +54,24 @@ async function handleStream(req, res) {
 app.get("/health", (req, res) => res.json({ status: "ok" }));
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`✅ Smart Selector online en puerto ${PORT}`);
+  console.log(`
+╔═══════════════════════════════════════════════════════╗
+║          Smart Selector  Stremio Addon               ║
+╠═══════════════════════════════════════════════════════╣
+║                                                       ║
+║  Configurar addon:                                    ║
+║  → http://localhost:${PORT}/                          ║
+║                                                       ║
+║  Instalar en Stremio (usar tras configurar):         ║
+║  → http://localhost:${PORT}/{config}/manifest.json   ║
+║                                                       ║
+╚═══════════════════════════════════════════════════════╝
+`);
+}).on("error", (err) => {
+  if (err.code === "EADDRINUSE") {
+    console.error(`\n❌ Puerto ${PORT} en uso. Prueba: set PORT=7001 && node index.js\n`);
+  } else {
+    console.error("❌ Error:", err.message);
+  }
+  process.exit(1);
 });
