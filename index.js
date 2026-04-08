@@ -10,7 +10,7 @@ try {
   process.exit(1);
 }
 
-const PORT = process.env.PORT || 7000;
+const PORT = process.env.PORT || 10000;
 const app  = express();
 
 app.use(cors());
