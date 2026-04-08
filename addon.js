@@ -1,15 +1,6 @@
-/**
- * Stremio Smart Selector — TODO EN UN SOLO ARCHIVO
- * No requiere ninguna subcarpeta ni archivo adicional.
- */
-
 const axios = require("axios");
 
-// ═══════════════════════════════════════════════════════════════════
-// SCORING — detecta calidad, idioma y puntúa cada stream
-// ═══════════════════════════════════════════════════════════════════
-
-const QUALITY_RANK = { "2160p":5, "4k":5, "uhd":5, "1080p":4, "fhd":4, "720p":3, "hd":3, "480p":2, "sd":1, "unknown":0 };
+const QUALITY_RANK = { "2160p": 5, "4k": 5, "uhd": 5, "1080p": 4, "fhd": 4, "720p": 3, "hd": 3, "480p": 2, "480": 2, "sd": 1, "cam": 1, "ts": 1, "unknown": 0 };
 
 function detectQuality(text) {
   const t = (text || "").toLowerCase();
@@ -17,6 +8,7 @@ function detectQuality(text) {
   if (/1080p|fhd/.test(t))     return "1080p";
   if (/720p/.test(t))          return "720p";
   if (/480p|dvdrip/.test(t))   return "480p";
+  if (/cam|ts|r5|.scr/.test(t)) return "cam";
   return "unknown";
 }
 
@@ -50,71 +42,93 @@ function detectSubtitleLangs(text) {
   return found;
 }
 
+function getSubtitleForAudio(audioLangs, subtitleMap) {
+  for (const lang of audioLangs) {
+    if (subtitleMap && subtitleMap[lang] && subtitleMap[lang] !== "none") {
+      return subtitleMap[lang];
+    }
+  }
+  return null;
+}
+
 function scoreStream(stream, prefs) {
   const text = [(stream.name || ""), (stream.title || "")].join(" ");
   let score = 0;
   const breakdown = {};
 
-  // Audio
   const audio = detectAudioLangs(text);
-  if (!prefs.audioLang || prefs.audioLang === "any") {
+  const detectedAudio = audio[0] || "unknown";
+
+  if (!prefs.audioPrefs || prefs.audioPrefs.length === 0) {
     score += 200; breakdown.audio = "+200 (sin preferencia)";
-  } else if (audio.includes(prefs.audioLang)) {
-    score += 500; breakdown.audio = `+500 (${prefs.audioLang} encontrado)`;
-  } else if (audio.length === 0) {
-    score += 50;  breakdown.audio = "+50 (idioma desconocido)";
   } else {
-    score += 0;   breakdown.audio = `+0 (${audio.join(",")} ≠ ${prefs.audioLang})`;
+    const bestAudioIdx = prefs.audioPrefs.findIndex(l => audio.includes(l));
+    if (bestAudioIdx === 0) {
+      score += 500; breakdown.audio = `+500 (${prefs.audioPrefs[0]} preferido)`;
+    } else if (bestAudioIdx > 0) {
+      score += 300 - (bestAudioIdx * 50); breakdown.audio = `+${score} (${audio[0]} en posición ${bestAudioIdx + 1})`;
+    } else if (audio.length === 0) {
+      score += 50; breakdown.audio = "+50 (idioma desconocido)";
+    } else {
+      score += 0; breakdown.audio = `+0 (${audio.join(",")} no preferido)`;
+    }
   }
 
-  // Calidad
   const qual = detectQuality(text);
-  const desired  = QUALITY_RANK[prefs.quality]  || 0;
-  const detected = QUALITY_RANK[qual] || 0;
-  if (!prefs.quality || prefs.quality === "any") {
-    score += 150; breakdown.quality = "+150 (sin preferencia)";
-  } else if (detected === desired) {
-    score += 300; breakdown.quality = `+300 (exacta: ${qual})`;
-  } else if (detected > desired) {
-    score += 250; breakdown.quality = `+250 (mejor: ${qual})`;
+  const desiredRank  = prefs.qualities && prefs.qualities.length > 0
+    ? (prefs.qualities.includes(qual) ? QUALITY_RANK[qual] : -1)
+    : 4;
+  
+  if (!prefs.qualities || prefs.qualities.length === 0 || prefs.qualities.includes(qual)) {
+    if (!prefs.qualities || prefs.qualities.length === 0) {
+      score += 150; breakdown.quality = "+150 (sin filtro)";
+    } else {
+      score += 300; breakdown.quality = `+300 (${qual} permitida)`;
+    }
   } else {
-    const q = Math.max(0, 300 - (desired - detected) * 80);
-    score += q;   breakdown.quality = `+${q} (inferior: ${qual})`;
+    score += 0; breakdown.quality = `+0 (${qual} filtrada)`;
   }
 
-  // Subtítulos
   const subs = detectSubtitleLangs(text);
-  if (!prefs.subtitleLang || prefs.subtitleLang === "none") {
-    score += 0;   breakdown.subs = "+0 (no se necesitan subs)";
-  } else if (subs.includes(prefs.subtitleLang)) {
-    score += 150; breakdown.subs = `+150 (sub ${prefs.subtitleLang} encontrado)`;
+  const wantedSub = prefs.subtitleMap 
+    ? getSubtitleForAudio(audio, prefs.subtitleMap) 
+    : null;
+  
+  if (!wantedSub) {
+    score += 100; breakdown.subs = "+100 (no se necesitan subs)";
+  } else if (subs.includes(wantedSub)) {
+    score += 150; breakdown.subs = `+150 (sub ${wantedSub})`;
+  } else if (subs.length === 0 && wantedSub === "spa") {
+    score += 50; breakdown.subs = "+50 (subs implícitos spa)";
   } else {
-    score += 0;   breakdown.subs = `+0 (subs no detectados)`;
+    score += 0; breakdown.subs = `+0 (subs: ${subs.join(",")})`;
   }
 
-  // Seeders (desempate)
   const seeders = parseInt(stream._seeders) || 0;
   const seederPts = seeders > 0 ? Math.min(50, Math.round(Math.log10(seeders + 1) * 20)) : 0;
   score += seederPts; breakdown.seeders = `+${seederPts} (${seeders} seeders)`;
 
-  return { score, breakdown };
+  return { score, breakdown, detectedAudio, detectedQuality: qual };
 }
 
-function selectBest(streams, prefs, minSeeders) {
-  const filtered = minSeeders > 0
-    ? streams.filter(s => (parseInt(s._seeders) || 0) >= minSeeders)
-    : streams;
+function selectBest(streams, prefs) {
+  if (!streams || streams.length === 0) return null;
 
-  if (filtered.length === 0) return null;
+  let filtered = streams;
+  if (prefs.qualities && prefs.qualities.length > 0) {
+    filtered = streams.filter(s => {
+      const t = [(s.name || ""), (s.title || "")].join(" ");
+      const q = detectQuality(t);
+      return prefs.qualities.includes(q);
+    });
+  }
+
+  if (filtered.length === 0) filtered = streams;
 
   return filtered
-    .map(s => { const r = scoreStream(s, prefs); return { ...s, _score: r.score, _breakdown: r.breakdown }; })
+    .map(s => { const r = scoreStream(s, prefs); return { ...s, _score: r.score, _breakdown: r.breakdown, _detectedAudio: r.detectedAudio }; })
     .sort((a, b) => b._score - a._score)[0];
 }
-
-// ═══════════════════════════════════════════════════════════════════
-// PROXY — consulta los addons configurados por el usuario
-// ═══════════════════════════════════════════════════════════════════
 
 async function fetchFromAddon(baseUrl, type, id) {
   const url = baseUrl.replace(/\/+$/, "") + `/stream/${type}/${id}.json`;
@@ -146,6 +160,9 @@ async function fetchFromAddon(baseUrl, type, id) {
 }
 
 async function getAllStreams(type, id, addonUrls) {
+  if (!addonUrls || addonUrls.length === 0) {
+    return [];
+  }
   const results = await Promise.allSettled(
     addonUrls.map(url => fetchFromAddon(url, type, id))
   );
@@ -153,7 +170,6 @@ async function getAllStreams(type, id, addonUrls) {
   for (const r of results) {
     if (r.status === "fulfilled") streams.push(...r.value);
   }
-  // Deduplicar por infoHash
   const seen = new Set();
   return streams.filter(s => {
     if (!s.infoHash) return true;
@@ -162,67 +178,69 @@ async function getAllStreams(type, id, addonUrls) {
   });
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// MANIFEST
-// ═══════════════════════════════════════════════════════════════════
-
 const manifest = {
   id:          "com.smartselector.stremio",
   version:     "1.0.0",
   name:        "Smart Selector",
-  description: "Elige automáticamente el mejor stream según tu idioma de audio, subtítulos y calidad. Sin preguntar.",
+  description: "Selector inteligente de streams con preferencias de audio, subtítulos y calidad.",
   catalogs:    [],
   resources:   ["stream"],
   types:       ["movie", "series"],
   idPrefixes:  ["tt"],
   behaviorHints: { configurable: true, configurationRequired: false },
   config: [
-    { key: "addonUrls",    type: "text",   title: "🔗 URLs de addons a consultar (separadas por coma)",  default: "https://torrentio.strem.fun/sort=seeders" },
-    { key: "audioLang",    type: "select", title: "🔊 Idioma de audio",    options: ["spa","eng","fra","deu","ita","por","jpn","kor","zho","rus","any"], default: "spa" },
-    { key: "subtitleLang", type: "select", title: "💬 Subtítulos",         options: ["none","spa","eng","fra","deu","ita","por","jpn","any"],            default: "none" },
-    { key: "quality",      type: "select", title: "🎬 Calidad preferida",  options: ["2160p","1080p","720p","480p","any"],                               default: "1080p" },
-    { key: "minSeeders",   type: "text",   title: "🌱 Seeders mínimos",    default: "5" },
+    { key: "addonUrls",    type: "text",   title: "🔗 URLs de addons (separadas por coma)",  default: "" },
+    { key: "audioPrefs",   type: "text",   title: "🎧 Orden de audio (ej: spa,eng)",         default: "spa,eng" },
+    { key: "subtitleMap",  type: "text",   title: "💬 Mapa subtítulos (ej: spa:none,eng:spa)", default: "spa:none,eng:spa" },
+    { key: "qualities",    type: "text",   title: "🎬 Calidades (ej: 2160p,1080p,720p)",     default: "2160p,1080p,720p" },
   ],
 };
 
-// ═══════════════════════════════════════════════════════════════════
-// HANDLER
-// ═══════════════════════════════════════════════════════════════════
+function parseConfig(configStr) {
+  if (typeof configStr === 'object') return configStr;
+  try {
+    return JSON.parse(decodeURIComponent(configStr));
+  } catch {
+    try {
+      return JSON.parse(Buffer.from(configStr, 'base64').toString('utf8'));
+    } catch {
+      return {};
+    }
+  }
+}
 
 async function streamHandler({ type, id, config }) {
   console.log("\n" + "─".repeat(60));
   console.log(`[handler] ${type.toUpperCase()} ${id}`);
 
+  const parsed = parseConfig(config);
+  
   const prefs = {
-    audioLang:    config?.audioLang    || "spa",
-    subtitleLang: config?.subtitleLang || "none",
-    quality:      config?.quality      || "1080p",
+    audioPrefs: parsed.audioPrefs || ["spa", "eng"],
+    subtitleMap: parsed.subtitleMap || { "spa": "none", "eng": "spa" },
+    qualities: parsed.qualities || ["2160p", "1080p", "720p", "cam", "480p"],
   };
-  const minSeeders = parseInt(config?.minSeeders) || 0;
-  const addonUrls  = (config?.addonUrls || "https://torrentio.strem.fun/sort=seeders")
-    .split(",").map(u => u.trim()).filter(u => u.startsWith("http"));
 
-  console.log("[handler] Prefs:", prefs, "| minSeeders:", minSeeders);
-  console.log("[handler] Consultando:", addonUrls);
+  let addonUrls = [];
+  if (parsed.addonUrls && parsed.addonUrls.length > 0) {
+    addonUrls = parsed.addonUrls.map(u => u.trim()).filter(u => u.startsWith("http"));
+  }
 
-  const all  = await getAllStreams(type, id, addonUrls);
+  console.log("[handler] Prefs:", JSON.stringify(prefs));
+  console.log("[handler] Consultando:", addonUrls.length > 0 ? addonUrls : "(usando addons por defecto)");
+
+  const all = await getAllStreams(type, id, addonUrls);
   console.log(`[handler] Streams recibidos: ${all.length}`);
 
   if (all.length === 0) return { streams: [] };
 
-  const best = selectBest(all, prefs, minSeeders);
-  if (!best) { console.warn("[handler] Ninguno supera el mínimo de seeders"); return { streams: [] }; }
+  const best = selectBest(all, prefs);
+  if (!best) return { streams: [] };
 
   console.log(`[handler] ✅ Ganador: "${best._rawName}" | score: ${best._score}`);
   console.log("[handler] Desglose:", best._breakdown);
 
-  const prefLine = [
-    prefs.audioLang !== "any"     ? "🔊 " + prefs.audioLang.toUpperCase()    : null,
-    prefs.subtitleLang !== "none" ? "💬 " + prefs.subtitleLang.toUpperCase() : null,
-    "⭐ " + best._score + "pts",
-  ].filter(Boolean).join(" · ");
-
-  const result = { name: "Smart Selector\n" + prefLine, title: best._rawTitle || best.title };
+  const result = { name: best._rawName || "Smart Selector", title: best._rawTitle || best.title };
   if (best.infoHash)      { result.infoHash = best.infoHash; if (best.fileIdx !== undefined) result.fileIdx = best.fileIdx; }
   else if (best.url)      { result.url = best.url; }
   if (best.behaviorHints) result.behaviorHints = best.behaviorHints;
